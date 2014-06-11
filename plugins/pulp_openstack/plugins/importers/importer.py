@@ -1,12 +1,14 @@
 from gettext import gettext as _
 
+import os
+import shutil
 import logging
 
 from pulp.common.config import read_json_config
 from pulp.plugins.conduits.mixins import UnitAssociationCriteria
 from pulp.plugins.importer import Importer
 
-from pulp_openstack.common import constants
+from pulp_openstack.common import constants, models
 
 
 _logger = logging.getLogger(__name__)
@@ -47,37 +49,24 @@ class OpenstackImageImporter(Importer):
     def upload_unit(self, repo, type_id, unit_key, metadata, file_path, conduit, config):
         """
         Upload a openstack image.
-
-        The following is copied from the superclass.
-
-        :param repo:      metadata describing the repository
-        :type  repo:      pulp.plugins.model.Repository
-        :param type_id:   type of unit being uploaded
-        :type  type_id:   str
-        :param unit_key:  identifier for the unit, specified by the user
-        :type  unit_key:  dict
-        :param metadata:  any user-specified metadata for the unit
-        :type  metadata:  dict
-        :param file_path: path on the Pulp server's filesystem to the temporary location of the
-                          uploaded file; may be None in the event that a unit is comprised entirely
-                          of metadata and has no bits associated
-        :type  file_path: str
-        :param conduit:   provides access to relevant Pulp functionality
-        :type  conduit:   pulp.plugins.conduits.unit_add.UnitAddConduit
-        :param config:    plugin configuration for the repository
-        :type  config:    pulp.plugins.config.PluginCallConfiguration
-        :return:          A dictionary describing the success or failure of the upload. It must
-                          contain the following keys:
-                            'success_flag': bool. Indicates whether the upload was successful
-                            'summary':      json-serializable object, providing summary
-                            'details':      json-serializable object, providing details
-        :rtype:           dict
+        See super(self.__class__, self).upload_unit() for the docblock explaining this method.
         """
+        image = models.OpenstackImage(unit_key['image_checksum'], unit_key['image_size'])
+        # not sure if this is the best way to handle init_unit, pulp_docker is a bit different
+        image.init_unit(conduit)
 
-        # TODO: fix
-        # save those models as units in pulp
-        # upload.save_models(conduit, models, file_path)
-        pass
+        shutil.move(file_path, image.storage_path)
+        try:
+            # Let's validate the image. This will raise a
+            # ValueError if the image does not validate correctly.
+            image.validate()
+        except ValueError, e:
+            # If validation raises a ValueError, we should delete the file and raise
+            os.remove(image.storage_path)
+            return {'success_flag': False, 'summary': e.message, 'details': None}
+
+        conduit.save_unit(image._unit)
+        return {'success_flag': True, 'summary': None, 'details': None}
 
     def import_units(self, source_repo, dest_repo, import_conduit, config, units=None):
         """
@@ -125,58 +114,17 @@ class OpenstackImageImporter(Importer):
         :return: list of Unit instances that were saved to the destination repository
         :rtype:  list
         """
-        # Determine which units are being copied
         if units is None:
             criteria = UnitAssociationCriteria(type_ids=[constants.IMAGE_TYPE_ID])
             units = import_conduit.get_source_units(criteria=criteria)
 
-        # Associate to the new repository
-        known_units = set()
-        units_added = []
+        for u in units:
+            import_conduit.associate_unit(u)
 
-        while True:
-            units_to_add = set()
-
-            # Associate the units to the repository
-            for u in units:
-                import_conduit.associate_unit(u)
-                units_added.append(u)
-                known_units.add(u.unit_key['image_checksum'])
-            # Filter out units we have already added
-            units_to_add.difference_update(known_units)
-            # Find any new units to add to the repository
-            if units_to_add:
-                unit_filter = {'image_checksum': {'$in': list(units_to_add)}}
-                criteria = UnitAssociationCriteria(type_ids=[constants.IMAGE_TYPE_ID],
-                                                   unit_filters=unit_filter)
-                units = import_conduit.get_source_units(criteria=criteria)
-            else:
-                # Break out of the loop since there were no units to add to the list
-                break
-
-        return units_added
+        return units
 
     def validate_config(self, repo, config):
         """
         We don't have a config yet, so it's always valid
         """
         return True, ''
-
-    def remove_units(self, repo, units, config):
-        """
-        Removes content units from the given repository.
-
-        This call will not result in the unit being deleted from Pulp itself.
-
-        :param repo: metadata describing the repository
-        :type  repo: pulp.plugins.model.Repository
-
-        :param units: list of objects describing the units to import in
-                      this call
-        :type  units: list of pulp.plugins.model.AssociatedUnit
-
-        :param config: plugin configuration
-        :type  config: pulp.plugins.config.PluginCallConfiguration
-        """
-        # TODO: fix
-        pass

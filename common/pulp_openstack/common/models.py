@@ -45,3 +45,29 @@ class OpenstackImage(object):
         """
         # TODO: add stuff like arch, image type, container type, etc
         return {}
+
+    def init_unit(self, conduit):
+        """
+        Use the given conduit's init_unit() call to initialize a unit, and
+        store the unit as self._unit.
+
+        :param conduit: The conduit to call init_unit() to get a Unit.
+        :type  conduit: pulp.plugins.conduits.mixins.AddUnitMixin
+        """
+        relative_path = os.path.join(self.image_checksum, str(self.image_size))
+        unit_key = {'image_size': self.image_size, 'image_checksum': self.image_checksum}
+        metadata = {}
+        self._unit = conduit.init_unit(self.TYPE_ID, unit_key, metadata, relative_path)
+
+    def validate(self):
+        """
+        Validate the checksum and filesize. This throws an exception if things aren't right.
+        """
+        pass
+
+    @property
+    def storage_path(self):
+        """
+        Return the storage path of the Unit that underlies this image.
+        """
+        return self._unit.storage_path
