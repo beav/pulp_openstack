@@ -58,7 +58,7 @@ class OpenstackImage(object):
         :param conduit: The conduit to call init_unit() to get a Unit.
         :type  conduit: pulp.plugins.conduits.mixins.AddUnitMixin
         """
-        relative_path_with_filename = os.path.join(self.relative_path(), self.image_filename)
+        relative_path_with_filename = os.path.join(self.relative_path, self.image_filename)
         unit_key = {'image_size': self.image_size,
                     'image_checksum': self.image_checksum,
                     'image_filename': self.image_filename}
