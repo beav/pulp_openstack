@@ -54,8 +54,8 @@ class OpenstackImageImporter(Importer):
         image = models.OpenstackImage(unit_key['image_checksum'], unit_key['image_size'])
         # not sure if this is the best way to handle init_unit, pulp_docker is a bit different
         image.init_unit(conduit)
-
         shutil.move(file_path, image.storage_path)
+
         try:
             # Let's validate the image. This will raise a
             # ValueError if the image does not validate correctly.
