@@ -33,7 +33,7 @@ class UploadOpenstackImageCommand(UploadCommand):
         size = self._find_image_size(filename)
         unit_key = {'image_checksum': checksum,
                     'image_size': size,
-                    'image_filename': os.basename(filename)}
+                    'image_filename': os.path.basename(filename)}
         metadata = {}
 
         return unit_key, metadata
