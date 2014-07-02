@@ -82,8 +82,20 @@ class TestUploadUnit(unittest.TestCase):
         mock_remove.remove.assert_called_once()
 
 
-class TestValidateConfig(unittest.TestCase):
-    def test_always_true(self):
-        for repo, config in [['a', 'b'], [1, 2], [mock.Mock(), {}], ['abc', {'a': 2}]]:
-            # make sure all attempts are validated
-            self.assertEqual(OpenstackImageImporter().validate_config(repo, config), (True, ''))
+class TestSync(unittest.TestCase):
+
+    def test_validate_config(self):
+        config = {'feed': 'http://example.com/repo/'}
+        mock_repo = mock.MagicMock()
+        result = OpenstackImageImporter().validate_config(mock_repo, config)
+        self.assertEquals(result, (True, ''))
+
+    # this just tests that sync was called and does not test sync itself
+    @mock.patch('pulp_openstack.plugins.importers.sync.ImageSyncRun')
+    def test_sync_repo(self, mock_imagesyncrun):
+        mock_config = mock.MagicMock()
+        mock_conduit = mock.MagicMock()
+        mock_repo = mock.MagicMock()
+        OpenstackImageImporter().sync_repo(mock_repo, mock_conduit, mock_config)
+        # assert called once with no args
+        mock_imagesyncrun().perform_sync.assert_called_once_with()

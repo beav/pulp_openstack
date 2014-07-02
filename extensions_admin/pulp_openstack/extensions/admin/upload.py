@@ -18,7 +18,10 @@ d = _('disk format')
 OPTIONS.append(PulpCliOption('--image_disk_format', d, required=False))
 
 d = _('container format')
-OPTIONS.append(PulpCliOption('--image_conatiner_format', d, required=False))
+OPTIONS.append(PulpCliOption('--image_container_format', d, required=False))
+
+d = _('minimum disk size needed to run image')
+OPTIONS.append(PulpCliOption('--image_min_disk', d, required=False))
 
 
 class UploadOpenstackImageCommand(UploadCommand):

@@ -25,3 +25,7 @@ PUBLISH_STEP_OVER_HTTP = 'publish_images_over_http'
 
 PUBLISH_STEP_GLANCE_PUBLISHER = 'publish_to_glance'
 PUBLISH_STEP_OVER_GLANCE_REST = 'publish_images_over_glance_rest'
+
+CONFIG_MAX_DOWNLOADS_DEFAULT = 5
+# TODO: FIX
+CONFIG_VALIDATE_DEFAULT = False

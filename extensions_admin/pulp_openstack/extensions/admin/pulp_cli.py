@@ -9,6 +9,7 @@ from pulp_openstack.extensions.admin.images import ImageCopyCommand
 from pulp_openstack.extensions.admin.images import ImageRemoveCommand
 from pulp_openstack.extensions.admin.upload import UploadOpenstackImageCommand
 from pulp_openstack.extensions.admin.repo_list import ListOpenstackRepositoriesCommand
+from pulp_openstack.extensions.admin.status import ImageStatusRenderer
 
 
 SECTION_ROOT = 'openstack'
@@ -19,6 +20,9 @@ DESC_REPO = _('repository lifecycle commands')
 
 SECTION_UPLOADS = 'uploads'
 DESC_UPLOADS = _('upload openstack images into a repository')
+
+SECTION_SYNC = 'sync'
+DESC_SYNC = _('sync an openstack repository from an upstream source')
 
 SECTION_PUBLISH = 'publish'
 DESC_PUBLISH = _('publish a openstack repository')
@@ -42,6 +46,7 @@ def initialize(context):
     repo_section = add_repo_section(context, root_section)
     add_upload_section(context, repo_section)
     add_publish_section(context, repo_section)
+    add_sync_section(context, repo_section)
 
 
 def add_upload_section(context, parent_section):
@@ -60,6 +65,25 @@ def add_upload_section(context, parent_section):
     upload_section.add_command(UploadOpenstackImageCommand(context))
 
     return upload_section
+
+
+def add_sync_section(context, parent_section):
+    """
+    add a sync section to the openstack section
+
+    :param context: pulp context
+    :type  context: pulp.client.extensions.core.ClientContext
+    :param parent_section:  section of the CLI to which the upload section
+                            should be added
+    :type  parent_section:  pulp.client.extensions.extensions.PulpCliSection
+    :return: populated section
+    :rtype: PulpCliSection
+    """
+    renderer = ImageStatusRenderer(context)
+    sync_section = parent_section.create_subsection(SECTION_SYNC, DESC_SYNC)
+    sync_section.add_command(sync_publish.RunSyncRepositoryCommand(context, renderer))
+
+    return sync_section
 
 
 def add_repo_section(context, parent_section):

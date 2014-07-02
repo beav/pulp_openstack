@@ -30,15 +30,19 @@ class TestPublishImagesStep(unittest.TestCase):
         conduit = RepoPublishConduit(repo.id, 'foo_repo')
         self.parent = PublishStep('test-step', repo, conduit, config)
 
-    def tearDown(self):
-        shutil.rmtree(self.working_directory)
-
     def test_process_unit(self):
         step = publish_steps.PublishImagesStep()
         fake_image_filename = 'fake-zero-byte-image.qcow2'
         touch(os.path.join(self.content_directory, fake_image_filename))
+
         unit = Mock(unit_key={'image_checksum': 'd41d8cd98f00b204e9800998ecf8427e'},
-                    storage_path=os.path.join(self.content_directory, fake_image_filename))
+                    storage_path=os.path.join(self.content_directory, fake_image_filename),
+                    metadata={'image_container_format': 'mock_fmt',
+                              'image_disk_format': 'mock_fmt',
+                              'image_size': 10000,
+                              'image_name': 'mock unit',
+                              'image_min_disk': 4096,
+                              'image_min_ram': 1024})
         step.get_working_dir = Mock(return_value=self.publish_directory)
         step.process_unit(unit)
         # verify symlink
@@ -47,9 +51,56 @@ class TestPublishImagesStep(unittest.TestCase):
 
     def test_finalize(self):
         step = publish_steps.PublishImagesStep()
-        step.redirect_context = Mock()
+        step.parent = self.parent
         step.finalize()
-        step.redirect_context.finalize.assert_called_once_with()
+        # verify xml file was created
+        expected_content = '<pulp_image_manifest version="1" />'
+        with open(os.path.join(self.working_directory, 'web', '.image-metadata.xml')) as f:
+            self.assertEquals(f.readline(), expected_content)
+
+    def test_finalize_metadata_exists(self):
+        step = publish_steps.PublishImagesStep()
+        step.parent = self.parent
+        # test that if the directory already exists, we keep going
+        os.mkdir(os.path.join(self.working_directory, 'web'))
+        step.finalize()
+        # verify xml file was created
+        expected_content = '<pulp_image_manifest version="1" />'
+        with open(os.path.join(self.working_directory, 'web', '.image-metadata.xml')) as f:
+            self.assertEquals(f.readline(), expected_content)
+
+    def test_finalize_with_images(self):
+        step = publish_steps.PublishImagesStep()
+        step.parent = self.parent
+        repo_metadata_fragment_1 = {'checksum': '123456',
+                                    'container_format': 'bare',
+                                    'disk_format': 'qcow2',
+                                    'filename': 'foo.qcow2',
+                                    'min_disk': '102400',
+                                    'min_ram': '2048',
+                                    'name': 'Foo Image Name',
+                                    'size': '10000'}
+        repo_metadata_fragment_2 = {'checksum': 'abcdef',
+                                    'container_format': 'bare',
+                                    'disk_format': 'qcow2',
+                                    'filename': 'bar.qcow2',
+                                    'min_disk': '204800',
+                                    'min_ram': '4096',
+                                    'name': 'Bar Image Name',
+                                    'size': '20000'}
+
+        step.repo_metadata = [repo_metadata_fragment_1, repo_metadata_fragment_2]
+        step.finalize()
+        # verify xml file was created
+        expected_content = '<pulp_image_manifest version="1"><image checksum="123456"' \
+                           ' container_format="bare" disk_format="qcow2" filename="foo.qcow2"' \
+                           ' min_disk="102400" min_ram="2048" name="Foo Image Name"' \
+                           ' size="10000" /><image checksum="abcdef" container_format="bare"' \
+                           ' disk_format="qcow2" filename="bar.qcow2" min_disk="204800"' \
+                           ' min_ram="4096" name="Bar Image Name" size="20000"' \
+                           ' /></pulp_image_manifest>'
+        with open(os.path.join(self.working_directory, 'web', '.image-metadata.xml')) as f:
+            self.assertEquals(f.readline(), expected_content)
 
 
 class TestWebPublisher(unittest.TestCase):

@@ -53,3 +53,9 @@ class TestCreateOpenstackRepositoryCommand(unittest.TestCase):
             if r['distributor_id'] == 'openstack_glance_distributor_name_cli':
                 self.assertEquals(r["distributor_config"], {'keystone-username': 'test-username',
                                                             'keystone-tenant': 'test-tenant'})
+
+    def test_parse_importer_config(self):
+        command = cudl.CreateOpenstackRepositoryCommand(Mock())
+        result = command._parse_importer_config({'feed-url': 'http://example.com/'})
+        print result
+        self.assertEquals(result["feed"], 'http://example.com/')

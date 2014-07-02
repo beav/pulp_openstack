@@ -1,14 +1,15 @@
 from gettext import gettext as _
 
 import os
-import shutil
 import logging
+import shutil
 
 from pulp.common.config import read_json_config
 from pulp.plugins.conduits.mixins import UnitAssociationCriteria
 from pulp.plugins.importer import Importer
 
 from pulp_openstack.common import constants, models
+from pulp_openstack.plugins.importers import sync
 
 
 _logger = logging.getLogger(__name__)
@@ -129,7 +130,7 @@ class OpenstackImageImporter(Importer):
 
     def validate_config(self, repo, config):
         """
-        We don't have a config yet, so it's always valid
+        Currently a no-op.
 
         :param repo: repo to check
         :type  repo: pulp.plugins.model.Repository
@@ -139,3 +140,9 @@ class OpenstackImageImporter(Importer):
         :rtype: tuple
         """
         return True, ''
+
+    def sync_repo(self, repo, sync_conduit, config):
+        self.image_sync = sync.ImageSyncRun(sync_conduit, config)
+        report = self.image_sync.perform_sync()
+        self.image_sync = None
+        return report
