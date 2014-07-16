@@ -2,11 +2,12 @@ from gettext import gettext as _
 
 import logging
 import os
+import xml.etree.cElementTree as ET
 
 from pulp.plugins.util.publish_step import PublishStep, UnitPublishStep, \
     AtomicDirectoryPublishStep
 
-from pulp_openstack.common import constants
+from pulp_openstack.common import constants, models
 from pulp_openstack.plugins.distributors import configuration
 
 _logger = logging.getLogger(__name__)
@@ -56,6 +57,7 @@ class PublishImagesStep(UnitPublishStep):
         self.context = None
         self.redirect_context = None
         self.description = _('Publishing Image Files.')
+        self.repo_metadata = []
 
     def process_unit(self, unit):
         """
@@ -72,12 +74,45 @@ class PublishImagesStep(UnitPublishStep):
         self._create_symlink(unit.storage_path,
                              os.path.join(target_base, os.path.basename(unit.storage_path)))
 
+        # create repo metadata fragment and add to list
+        repo_metadata_fragment = {'image_filename': os.path.basename(unit.storage_path),
+                                  'image_checksum': unit.unit_key['image_checksum'],
+                                  'image_container_format': unit.metadata['image_container_format'],
+                                  'image_disk_format': unit.metadata['image_disk_format'],
+                                  'image_size': str(unit.metadata['image_size']),
+                                  'image_name': unit.metadata['image_name'],
+                                  'image_min_disk': str(unit.metadata['image_min_disk']),
+                                  'image_min_ram': str(unit.metadata['image_min_ram'])}
+
+        self.repo_metadata.append(repo_metadata_fragment)
+
     def finalize(self):
         """
         Close & finalize each the metadata context
         """
-        if self.redirect_context:
-            self.redirect_context.finalize()
+        repo_metadata_filename = os.path.join(self.get_web_directory(),
+                                              models.ImageManifest.FILENAME)
+        self._write_metadata_file(self.repo_metadata, repo_metadata_filename)
+
+    def _write_metadata_file(self, repo_metadata, repo_metadata_filename):
+        """
+        write out metadata for image repo
+
+        :param repo_metadata: list of metadata fragments
+        :type repo_metadata: list of dicts
+        :param repo_metadata_filename:
+        :type repo_metadata_filename: str
+        """
+        _logger.debug("writing metadata for %s units to %s" % (len(repo_metadata),
+                                                               repo_metadata_filename))
+        root = ET.Element("pulp_image_manifest", {'version': '1'})
+        for rm in repo_metadata:
+            element = ET.SubElement(root, 'image')
+            for e in rm:
+                element.attrib[e] = str(rm[e])
+
+        tree = ET.ElementTree(root)
+        tree.write(repo_metadata_filename)
 
     def get_web_directory(self):
         """

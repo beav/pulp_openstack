@@ -73,21 +73,25 @@ class PublishImagesStep(UnitPublishStep):
         # be deleted via finalize()
         self.images_processed.append(unit.unit_key['image_checksum'])
 
-        _logger.debug("pushing unit %s from repo %s to glance" % (unit, self.get_repo().id))
+        _logger.info("pushing unit %s from repo %s to glance" % (unit, self.get_repo().id))
         images = list(self.ou.find_image(self.get_repo().id, unit.unit_key['image_checksum']))
 
-        _logger.debug("found existing image in glance: %s" % images)
+        _logger.info("found existing image in glance: %s" % images)
         if len(images) > 1:
             raise RuntimeError("more than one image found with same checksum for repo %s!" %
                                self.get_repo().id)
 
         if not images:
+            _logger.info("creating image")
             self.ou.create_image(unit.storage_path, self.get_repo().id,
                                  name=unit.metadata['image_name'],
                                  checksum=unit.unit_key['image_checksum'],
+                                 min_ram=unit.metadata['image_min_ram'],
+                                 min_disk=unit.metadata['image_min_disk'],
                                  size=unit.metadata['image_size'])
+            _logger.info("done creating image")
         else:
-            _logger.debug("image already exists, skipping publish")
+            _logger.info("image already exists, skipping publish")
 
     def finalize(self):
         """

@@ -1,6 +1,12 @@
 import os
+import logging
+
+import xml.etree.ElementTree as ET
 
 from pulp_openstack.common import constants
+
+
+_logger = logging.getLogger(__name__)
 
 
 class OpenstackImage(object):
@@ -45,7 +51,7 @@ class OpenstackImage(object):
         store the unit as self._unit.
 
         :param conduit: The conduit to call init_unit() to get a Unit.
-        :type  conduit: pulp.plugins.conduits.mixins.AddUnitMixin
+        :type  conduit: pulp.plugins.conduits.repo_sync.RepoSyncConduit
         """
         relative_path_with_filename = os.path.join(self.relative_path,
                                                    self.metadata['image_filename'])
@@ -68,3 +74,58 @@ class OpenstackImage(object):
         :rtype: string
         """
         return self._unit.storage_path
+
+    def save_unit(self, conduit):
+        """
+        Use the given conduit's save_unit() call to save self._unit.
+
+        :param conduit: The conduit to call save_unit() with.
+        :type conduit: pulp.plugins.conduits.repo_sync.RepoSyncConduit
+        """
+        conduit.save_unit(self._unit)
+
+
+class ImageManifest(object):
+    """
+    This class provides an API that is a handy way to interact with an image
+    manifest file. It automatically instantiates images out of the items found in the
+    manifest.
+    """
+
+    # This is the filename that the manifest is published to
+    FILENAME = '.image-metadata.xml'
+
+    def __init__(self, manifest_file, repo_url):
+        """
+        Instantiate a new ImageManifest from the open manifest_file.
+
+        :param manifest_file: An open file-like handle to a .image-manifest.xml file
+        :type manifest_file: An open file-like object
+        :param repo_url: The URL to the repository that this manifest came from. This is used
+                         to determine a url attribute for each image in the manifest.
+        :type repo_url: str
+        """
+        # Make sure we are reading from the beginning of the file
+        manifest_file.seek(0)
+        # Now let's process the manifest and return a list of resources that we'd like to download
+        manifest_xml = manifest_file.read()
+        _logger.debug("image manifest: %s" % manifest_xml)
+
+        self._images = []
+        root = ET.fromstring(manifest_xml)
+        for i in root:
+            _logger.debug("found image properties: %s" % i.attrib)
+            image = OpenstackImage(i.attrib['image_checksum'], properties=i.attrib)
+            self._images.append(image)
+
+    def __iter__(self):
+        """
+        Return an iterator for the images in the manifest.
+        """
+        return iter(self._images)
+
+    def __len__(self):
+        """
+        Return the number of images in the manifest.
+        """
+        return len(self._images)

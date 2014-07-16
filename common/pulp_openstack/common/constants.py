@@ -25,3 +25,7 @@ PUBLISH_STEP_OVER_HTTP = 'publish_images_over_http'
 
 PUBLISH_STEP_GLANCE_PUBLISHER = 'publish_to_glance'
 PUBLISH_STEP_OVER_GLANCE_REST = 'publish_images_over_glance_rest'
+
+SYNC_STEP = 'sync_step'
+SYNC_STEP_IMAGES = 'sync_step_images'
+SYNC_STEP_MANIFEST = 'sync_step_manifest'

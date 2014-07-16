@@ -40,7 +40,8 @@ class OpenstackUtils():
         _logger.info("image endpoint from service catalog is %s" % glance_endpoint)
         self.glance_client = glclient.Client(glance_endpoint, token=keystone_client.auth_token)
 
-    def create_image(self, filename, repo_id, name=None, checksum=None, size=None):
+    def create_image(self, filename, repo_id, name=None, checksum=None, size=None,
+                     min_ram=None, min_disk=None):
         """
         upload an image into glance
 
@@ -57,14 +58,25 @@ class OpenstackUtils():
         """
         # see http://docs.openstack.org/image-guide/content/image-formats.html
         # TODO; set private properties per flaper87
+        _logger.info("inside create_image")
         image_args = {'name': name,
                       'container_format': 'bare',
                       'disk_format': 'qcow2',
                       'protected': True,
                       'visibility': 'public',  # this needs to be configurable!
+                      'disk_format': 'qcow2',
+                      'protected': True,
                       'from_pulp': 'true',
                       'pulp_repo_id': repo_id}
 
+        # add optional args
+        if min_disk:
+            image_args['min_disk'] = int(min_disk)
+        if min_ram:
+            image_args['min_ram'] = int(min_ram)
+
+       
+        _logger.info("sending image with args %s" % image_args) 
         image = self.glance_client.images.create(**image_args)
 
         with open(filename, 'rb') as image_file:
@@ -75,7 +87,7 @@ class OpenstackUtils():
         if checksum != image.checksum:
             raise RuntimeError("checksum error! Expected %s, but got %s from server" %
                                (checksum, image.checksum))
-        if size != image.size:
+        if int(size) != int(image.size):
             raise RuntimeError("size error! Expected file size %s, but got %s from server" %
                                (size, image.size))
 
