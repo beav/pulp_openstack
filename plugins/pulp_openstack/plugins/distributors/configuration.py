@@ -1,7 +1,5 @@
 import os
 
-from urlparse import urlparse
-
 from pulp.server.exceptions import PulpCodedValidationException
 
 from pulp_openstack.common import constants, error_codes
@@ -18,21 +16,6 @@ def validate_config(config):
     :rtype: tuple
     """
     errors = []
-    server_url = config.get(constants.CONFIG_KEY_REDIRECT_URL)
-    if server_url:
-        parsed = urlparse(server_url)
-        if not parsed.scheme:
-            errors.append(PulpCodedValidationException(error_code=error_codes.OST1001,
-                                                       field=constants.CONFIG_KEY_REDIRECT_URL,
-                                                       url=server_url))
-        if not parsed.netloc:
-            errors.append(PulpCodedValidationException(error_code=error_codes.OST1002,
-                                                       field=constants.CONFIG_KEY_REDIRECT_URL,
-                                                       url=server_url))
-        if not parsed.path:
-            errors.append(PulpCodedValidationException(error_code=error_codes.OST1003,
-                                                       field=constants.CONFIG_KEY_REDIRECT_URL,
-                                                       url=server_url))
     protected = config.get(constants.CONFIG_KEY_PROTECTED)
     if protected:
         protected_parsed = config.get_boolean(constants.CONFIG_KEY_PROTECTED)

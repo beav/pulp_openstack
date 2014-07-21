@@ -15,7 +15,6 @@ CONFIG_KEY_GLANCE_PUBLISH_DIRECTORY = 'openstack_publish_directory'
 CONFIG_VALUE_GLANCE_PUBLISH_DIRECTORY = '/var/lib/pulp/published/openstack'
 
 # Config keys for a distributor instance in the database
-CONFIG_KEY_REDIRECT_URL = 'redirect-url'
 CONFIG_KEY_PROTECTED = 'protected'
 
 # Keys that are specified on the repo config

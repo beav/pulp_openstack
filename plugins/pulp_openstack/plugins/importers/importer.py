@@ -151,6 +151,8 @@ class OpenstackImageImporter(Importer):
         :type  sync_conduit: pulp.plugins.conduits.repo_sync.RepoSyncConduit
         :param config: plugin configuration
         :type  config: pulp.plugins.config.PluginCallConfiguration
+        :return: report
+        :rtype: tbd
         """
         _logger.info("syncing repo %s" % repo)
         _logger.info("conduit type: %s" % type(sync_conduit))

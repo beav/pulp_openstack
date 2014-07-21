@@ -43,7 +43,8 @@ class TestPublishImagesStep(unittest.TestCase):
         fake_image_filename = 'fake-zero-byte-image.qcow2'
         touch(os.path.join(self.content_directory, fake_image_filename))
         unit = Mock(unit_key={'image_checksum': 'd41d8cd98f00b204e9800998ecf8427e'},
-                    metadata={'image_size': 100, 'image_name': 'fake-image-name'},
+                    metadata={'image_size': 100, 'image_name': 'fake-image-name',
+                              'image_min_ram': 64, 'image_min_disk': 1},
                     storage_path=os.path.join(self.content_directory, fake_image_filename))
         step.get_working_dir = Mock(return_value=self.working_directory)
         step.process_unit(unit)
@@ -52,7 +53,8 @@ class TestPublishImagesStep(unittest.TestCase):
                                                            fake_image_filename),
                                               'foo_repo_id',
                                               checksum='d41d8cd98f00b204e9800998ecf8427e',
-                                              name='fake-image-name', size=100)]
+                                              name='fake-image-name', size=100, min_disk=1,
+                                              min_ram=64)]
 
         mock_ou.assert_has_calls(expected_calls, any_order=True)
 

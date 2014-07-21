@@ -14,42 +14,6 @@ from pulp_openstack.plugins.distributors import configuration
 
 class TestValidateConfig(unittest.TestCase):
 
-    def test_server_url_fully_qualified(self):
-        config = {
-            constants.CONFIG_KEY_REDIRECT_URL: 'http://www.pulpproject.org/foo'
-        }
-        self.assertEquals((True, None), configuration.validate_config(config))
-
-    def test_server_url_fully_qualified_with_port(self):
-        config = {
-            constants.CONFIG_KEY_REDIRECT_URL: 'http://www.pulpproject.org:440/foo'
-        }
-        self.assertEquals((True, None), configuration.validate_config(config))
-
-    def test_server_url_empty(self):
-        config = {
-            constants.CONFIG_KEY_REDIRECT_URL: ''
-        }
-        # This is valid as the default server should be used
-
-        self.assertEquals((True, None), configuration.validate_config(config))
-
-    def test_server_url_missing_host_and_path(self):
-        config = {
-            constants.CONFIG_KEY_REDIRECT_URL: 'http://'
-        }
-        assert_validation_exception(configuration.validate_config,
-                                    [error_codes.OST1002,
-                                     error_codes.OST1003], config)
-
-    def test_server_url_missing_scheme(self):
-        config = {
-            constants.CONFIG_KEY_REDIRECT_URL: 'www.pulpproject.org/foo'
-        }
-        assert_validation_exception(configuration.validate_config,
-                                    [error_codes.OST1001,
-                                     error_codes.OST1002], config)
-
     def test_configuration_protected_true(self):
         config = PluginCallConfiguration({
             constants.CONFIG_KEY_PROTECTED: True

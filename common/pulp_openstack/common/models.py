@@ -80,7 +80,7 @@ class OpenstackImage(object):
         Use the given conduit's save_unit() call to save self._unit.
 
         :param conduit: The conduit to call save_unit() with.
-        :type conduit: pulp.plugins.conduits.repo_sync.RepoSyncConduit
+        :type  conduit: pulp.plugins.conduits.repo_sync.RepoSyncConduit
         """
         conduit.save_unit(self._unit)
 
@@ -100,10 +100,10 @@ class ImageManifest(object):
         Instantiate a new ImageManifest from the open manifest_file.
 
         :param manifest_file: An open file-like handle to a .image-manifest.xml file
-        :type manifest_file: An open file-like object
+        :type  manifest_file: An open file-like object
         :param repo_url: The URL to the repository that this manifest came from. This is used
                          to determine a url attribute for each image in the manifest.
-        :type repo_url: str
+        :type  repo_url: str
         """
         # Make sure we are reading from the beginning of the file
         manifest_file.seek(0)
@@ -121,11 +121,16 @@ class ImageManifest(object):
     def __iter__(self):
         """
         Return an iterator for the images in the manifest.
+        :return: iterator of images
+        :rtype: iterator
         """
         return iter(self._images)
 
     def __len__(self):
         """
         Return the number of images in the manifest.
+
+        :return: number of images
+        :rtype: int
         """
         return len(self._images)

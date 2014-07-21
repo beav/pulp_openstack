@@ -55,6 +55,10 @@ class OpenstackUtils():
         :type  checksum: string
         :param size: size we expect image to have. This gets validated as after the upload.
         :type  size: int
+        :param min_ram: minimum amount of ram needed for the image in MB
+        :type  min_ram: int
+        :param min_disk: minimum mount of disk needed for the image in GB
+        :type  min_disk: int
         """
         # see http://docs.openstack.org/image-guide/content/image-formats.html
         # TODO; set private properties per flaper87
@@ -75,8 +79,7 @@ class OpenstackUtils():
         if min_ram:
             image_args['min_ram'] = int(min_ram)
 
-       
-        _logger.info("sending image with args %s" % image_args) 
+        _logger.info("sending image with args %s" % image_args)
         image = self.glance_client.images.create(**image_args)
 
         with open(filename, 'rb') as image_file:

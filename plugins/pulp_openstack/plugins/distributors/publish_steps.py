@@ -55,7 +55,6 @@ class PublishImagesStep(UnitPublishStep):
         super(PublishImagesStep, self).__init__(constants.PUBLISH_STEP_IMAGES,
                                                 constants.IMAGE_TYPE_ID)
         self.context = None
-        self.redirect_context = None
         self.description = _('Publishing Image Files.')
         self.repo_metadata = []
 
@@ -71,8 +70,8 @@ class PublishImagesStep(UnitPublishStep):
         _logger.debug("linking %s to %s" % (unit.storage_path,
                                             os.path.join(target_base,
                                                          os.path.basename(unit.storage_path))))
-        self._create_symlink(unit.storage_path,
-                             os.path.join(target_base, os.path.basename(unit.storage_path)))
+        PublishStep._create_symlink(unit.storage_path,
+                                    os.path.join(target_base, os.path.basename(unit.storage_path)))
 
         # create repo metadata fragment and add to list
         repo_metadata_fragment = {'image_filename': os.path.basename(unit.storage_path),
@@ -99,9 +98,9 @@ class PublishImagesStep(UnitPublishStep):
         write out metadata for image repo
 
         :param repo_metadata: list of metadata fragments
-        :type repo_metadata: list of dicts
-        :param repo_metadata_filename:
-        :type repo_metadata_filename: str
+        :type  repo_metadata: list of dicts
+        :param repo_metadata_filename: repo metadata filename
+        :type  repo_metadata_filename: str
         """
         _logger.debug("writing metadata for %s units to %s" % (len(repo_metadata),
                                                                repo_metadata_filename))
