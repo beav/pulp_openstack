@@ -95,7 +95,7 @@ class SyncImagesStep(UnitSyncStep, listener.DownloadEventListener):
 
         self.downloader = HTTPThreadedDownloader(DownloaderConfig(), self)
 
-    def get_generator(self):
+    def get_unit_generator(self):
         """
         return a generator with units we want to process
 

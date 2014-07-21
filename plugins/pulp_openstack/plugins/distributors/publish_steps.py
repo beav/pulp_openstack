@@ -107,8 +107,10 @@ class PublishImagesStep(UnitPublishStep):
         root = ET.Element("pulp_image_manifest", {'version': '1'})
         for rm in repo_metadata:
             element = ET.SubElement(root, 'image')
+            # build subelements for each value in metadata record
             for e in rm:
-                element.attrib[e] = str(rm[e])
+                subelement = ET.SubElement(element, e)
+                subelement.text = rm[e]
 
         tree = ET.ElementTree(root)
         tree.write(repo_metadata_filename)

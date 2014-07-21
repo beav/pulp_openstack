@@ -1,7 +1,7 @@
 import os
 import logging
 
-import xml.etree.ElementTree as ET
+from lxml import etree as ET
 
 from pulp_openstack.common import constants
 
@@ -95,6 +95,32 @@ class ImageManifest(object):
     # This is the filename that the manifest is published to
     FILENAME = '.image-metadata.xml'
 
+    VALIDATION_XSD = """<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema attributeFormDefault="unqualified" elementFormDefault="qualified"
+           xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="pulp_image_manifest" type="pulp_image_manifestType"/>
+  <xs:complexType name="pulp_image_manifestType">
+    <xs:sequence>
+      <xs:element name="image" maxOccurs="unbounded" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="image_checksum" type="xs:string"/>
+            <xs:element name="image_container_format" type="xs:string"/>
+            <xs:element name="image_disk_format" type="xs:string"/>
+            <xs:element name="image_filename" type="xs:string"/>
+            <xs:element name="image_min_disk" type="xs:int"/>
+            <xs:element name="image_min_ram" type="xs:int"/>
+            <xs:element name="image_name" type="xs:string"/>
+            <xs:element name="image_size" type="xs:int"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+    <xs:attribute type="xs:string" name="version"/>
+  </xs:complexType>
+</xs:schema>
+"""
+
     def __init__(self, manifest_file, repo_url):
         """
         Instantiate a new ImageManifest from the open manifest_file.
@@ -112,10 +138,20 @@ class ImageManifest(object):
         _logger.debug("image manifest: %s" % manifest_xml)
 
         self._images = []
+        # validate XML
+        schema_doc = ET.fromstring(self.VALIDATION_XSD)
+        xmlschema = ET.XMLSchema(schema_doc)
         root = ET.fromstring(manifest_xml)
+        xmlschema.assertValid(root)
+
         for i in root:
-            _logger.debug("found image properties: %s" % i.attrib)
-            image = OpenstackImage(i.attrib['image_checksum'], properties=i.attrib)
+            checksum = i.find("image_checksum").text
+            # convert child elements to dict
+            properties = {}
+            for property in i:
+                properties[property.tag] = property.text
+
+            image = OpenstackImage(checksum, properties=properties)
             self._images.append(image)
 
     def __iter__(self):
