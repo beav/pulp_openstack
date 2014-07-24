@@ -9,7 +9,7 @@ from pulp.plugins.conduits.mixins import UnitAssociationCriteria
 from pulp.plugins.importer import Importer
 
 from pulp_openstack.common import constants, models
-from pulp_openstack.plugins.importers.import_sync_steps import SyncImages
+from pulp_openstack.plugins.importers.import_sync_steps import GlanceImageSync
 
 
 _logger = logging.getLogger(__name__)
@@ -155,6 +155,5 @@ class OpenstackImageImporter(Importer):
         :rtype: tbd
         """
         _logger.info("syncing repo %s" % repo)
-        _logger.info("conduit type: %s" % type(sync_conduit))
-        self._syncer = SyncImages(repo, sync_conduit, config)
+        self._syncer = GlanceImageSync(repo, sync_conduit, config)
         return self._syncer.sync()

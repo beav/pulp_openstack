@@ -1,147 +1,171 @@
 from gettext import gettext as _
 
 import logging
+import os
+import shutil
 
 from urlparse import urljoin
-from cStringIO import StringIO
 
-from nectar import listener, request
-from nectar.config import DownloaderConfig
-from nectar.downloaders.threaded import HTTPThreadedDownloader
+from nectar import request
 
 from pulp.common.plugins import importer_constants
-from pulp.plugins.util.sync_step import SyncStep, UnitSyncStep
+from pulp.plugins.conduits.mixins import UnitAssociationCriteria
+from pulp.plugins.util.publish_step import PluginStep, PluginStepIterativeProcessingMixin, DownloadStep
+from pulp.server.managers.content.query import ContentQueryManager
+import pulp.server.managers.factory as manager_factory
 
 from pulp_openstack.common import constants, models
+from pulp_openstack.common import openstack_utils
+
 
 _logger = logging.getLogger(__name__)
 
 
-class SyncImages(SyncStep):
+class GlanceImageSync(PluginStep):
     """
-    Openstack image sync class that syncs images via http
+    Openstack Image Sync
     """
 
-    def __init__(self, repo, sync_conduit, config):
+    def __init__(self, repo, conduit, config):
         """
         :param repo: Pulp managed Yum repository
         :type  repo: pulp.plugins.model.Repository
-        :param sync_conduit: Conduit providing access to relative Pulp functionality
-        :type  sync_conduit: tbd
-        :param config: Pulp configuration for the distributor
+        :param conduit: Conduit providing access to relative Pulp functionality
+        :type  conduit: conduit
+        :param config: Pulp configuration for the importer
         :type  config: pulp.plugins.config.PluginCallConfiguration
         """
-        super(SyncImages, self).__init__(constants.SYNC_STEP, repo, sync_conduit, config)
+        super(GlanceImageSync, self).__init__(constants.SYNC_STEP, repo, conduit, config)
 
-        self.add_child(DownloadManifestStep(repo, sync_conduit, config))
-        self.add_child(SyncImagesStep())
+        metadata_dl_req_step = GlanceImageMetadataDownloadStep(constants.SYNC_STEP)
+        metadata_dl_req_step.description = _('Downloading image metadata')
+        self.add_child(metadata_dl_req_step)
 
+        metadata_process_step = GlanceImageDownloadStep(constants.SYNC_STEP)
+        metadata_process_step.description = _('Processing metadata and download images')
+        self.add_child(metadata_process_step)
 
-class DownloadManifestStep(SyncStep, listener.DownloadEventListener):
-    """
-    Openstack sync class to grab manifests
-    """
-
-    def __init__(self, repo, sync_conduit, config):
+    def sync(self):
         """
-        initialize manifest downloader
-
-        :param repo: Pulp managed Yum repository
-        :type  repo: pulp.plugins.model.Repository
-        :param sync_conduit: Conduit providing access to relative Pulp functionality
-        :type  sync_conduit: pulp.plugins.conduits.repo_sync.RepoSyncConduit
-        :param config: Pulp configuration for the distributor
-        :type  config: pulp.plugins.config.PluginCallConfiguration
+        kick off the sync
         """
-        super(DownloadManifestStep, self).__init__(constants.SYNC_STEP_MANIFEST, repo,
-                                                   sync_conduit, config)
-        self.description = _('Downloading image repo manifest for %s' % repo.id)
+        self.process_lifecycle()
+        return self._build_final_report()
+
+
+class GlanceImageMetadataDownloadStep(DownloadStep):
+
+    def __init__(self, plugin_type):
+        super(GlanceImageMetadataDownloadStep, self).__init__(plugin_type)
 
     def initialize(self):
         """
-        This step is the one that actually downloads the manifest.
-        """
-        _logger.debug("downloading manifest for repo %s" % self.get_repo())
-        conduit = self.get_conduit()
-        config = self.get_config()
-        downloader = HTTPThreadedDownloader(DownloaderConfig(), self)
+        sets up a download request for metadata.
 
+        Note that after this step is done, anything in self.downloads will get downloaded.
+        """
+        super(GlanceImageMetadataDownloadStep, self).initialize()
+        config = self.get_config()
         repo_url = config.get(importer_constants.KEY_FEED)
         manifest_url = urljoin(repo_url, models.ImageManifest.FILENAME)
-
-        manifest_destination = StringIO()
-        manifest_request = request.DownloadRequest(manifest_url, manifest_destination)
-        downloader.download([manifest_request])
-        manifest_destination.seek(0)
-
-        # if there are any errors, just let them raise normally
-        manifest = models.ImageManifest(manifest_destination, repo_url)
-        conduit._images = manifest
-        _logger.info("manifest: %s" % manifest_destination.getvalue())
+        manifest_destination = os.path.join(self.get_working_dir(), models.ImageManifest.FILENAME)
+        self.downloads.append(request.DownloadRequest(manifest_url, manifest_destination))
 
 
-class SyncImagesStep(UnitSyncStep, listener.DownloadEventListener):
-    """
-    Sync Images
-    """
+class GlanceImageDownloadStep(DownloadStep):
 
-    def __init__(self):
-        """
-        Initialize sync.
-        """
-        super(SyncImagesStep, self).__init__(constants.SYNC_STEP_IMAGES, constants.IMAGE_TYPE_ID)
-        self.context = None
-        self.description = _('Syncing images')
-
-        self.downloader = HTTPThreadedDownloader(DownloaderConfig(), self)
-
-    def get_unit_generator(self):
-        """
-        return a generator with units we want to process
-
-        :return: generator of units
-        :rtype: a generator
-        """
-        conduit = self.get_conduit()
-        return (x for x in conduit._images)
+    def __init__(self, plugin_type):
+        super(GlanceImageDownloadStep, self).__init__(plugin_type)
 
     def _get_total(self):
         """
-        return count of how many units we are going to work with
+        process metadata and creates a list of new units to create and download
 
-        :return: total unit count
+        This is a little unusual in that we are doing initialize() code inside
+        of _get_total(). We need to know how many items we are processing ASAP,
+        before initialize() happens, so we can set the length of the progress bar.
+        Unfortunately, we need to do metadata processing in order to figure out how
+        many items are being downloaded.
+
+        :returns: number of items to download
         :rtype: int
-        """
-        conduit = self.get_conduit()
-        return len(conduit._images)
 
-    def process_unit(self, unit):
         """
-        download the file and create the unit
+        # set up the downloader
+        super(GlanceImageDownloadStep, self).initialize()
 
-        :param unit: The unit to process
-        :type  unit: pulp_openstack.common.models.OpenstackImage
-        """
+        metadata = self._get_metadata()
         config = self.get_config()
         conduit = self.get_conduit()
-
-        unit.init_unit(conduit)
         repo_url = config.get(importer_constants.KEY_FEED)
-        unit.url = urljoin(repo_url, unit.metadata['image_filename'])
 
-        unit_request = request.DownloadRequest(unit.url, unit.storage_path, unit)
-        self.downloader.download([unit_request])
+        association_manager = manager_factory.repo_unit_association_manager()
 
-    # from listener.DownloadEventListener
+        # find all images we know of in pulp
+        query_manager = ContentQueryManager()
+        local_image_unit_coll = query_manager.\
+                                  get_content_unit_collection(type_id=constants.IMAGE_TYPE_ID)
+        local_image_units = list(local_image_unit_coll.find())
+
+        # this is a little verbose to avoid a python 2.7ism
+        local_image_unit_checksums = []
+        for unit in local_image_units:
+            local_image_unit_checksums.append(unit['image_checksum'])
+
+        module_criteria = UnitAssociationCriteria(type_ids=[constants.IMAGE_TYPE_ID])
+        existing_units_in_repo = conduit.get_units(criteria=module_criteria)
+
+
+        _logger.info("local image units %s" % local_image_units)
+
+        # find all images we know of in this repo
+        _logger.info("local image units in our repo %s" % existing_units_in_repo)
+
+        units_to_associate = []
+        new_units = []
+        for upstream_image in metadata:
+            upstream_image.init_unit(conduit)
+            if upstream_image.image_checksum in local_image_unit_checksums and \
+              upstream_image._unit not in existing_units_in_repo:
+               units_to_associate.append(upstream_image.unit_key)
+            elif upstream_image.image_checksum not in local_image_unit_checksums:
+                new_units.append(upstream_image)
+
+        # create new associations of existing units
+        conduit.associate_existing(constants.IMAGE_TYPE_ID,units_to_associate)
+
+        # build up download list from new unit list
+        for unit in new_units:
+            image_url = urljoin(repo_url, unit.metadata['image_filename'])
+            image_working_dest = os.path.join(self.get_working_dir(),
+                                              unit.metadata['image_filename'])
+            dl_request = request.DownloadRequest(image_url, image_working_dest)
+            dl_request.data = unit
+            self.downloads.append(dl_request)
+
+        return len(self.downloads)
+
     def download_succeeded(self, report):
         """
-        This is the callback that we will get from the downloader library when any individual
-        download succeeds.
+        on image download success, copy file to content dir and create a unit
 
-        :param report: report
+        :param report: report (unused here, just passed through to super)
         :type  report: report
         """
         unit = report.data
-        conduit = self.get_conduit()
-        unit.save_unit(conduit)
-        _logger.debug("unit %s saved" % unit)
+        image_working_src = os.path.join(self.get_working_dir(),
+                                         unit.metadata['image_filename'])
+        unit.init_unit(self.get_conduit()) 
+        shutil.copyfile(image_working_src, unit.storage_path)
+        unit.save_unit(self.get_conduit())
+        # call super to handle report stuff
+        super(GlanceImageDownloadStep, self).download_succeeded(report)
+
+    def _get_metadata(self):
+        config = self.get_config()
+        image_metadata_path = os.path.join(self.get_working_dir(), models.ImageManifest.FILENAME)
+        repo_url = config.get(importer_constants.KEY_FEED)
+        with open(image_metadata_path) as image_metadata_file:
+            metadata = models.ImageManifest(image_metadata_file, repo_url)
+
+        return metadata

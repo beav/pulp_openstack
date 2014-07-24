@@ -16,7 +16,7 @@ class OpenstackImage(object):
 
     TYPE_ID = constants.IMAGE_TYPE_ID
 
-    def __init__(self, image_checksum, properties):
+    def __init__(self, image_checksum, properties, unit=None):
         """
         :param image_checksum:    MD5 sum
         :type  image_checksum:    str
@@ -26,6 +26,7 @@ class OpenstackImage(object):
         # assemble info for unit_key
         self.image_checksum = image_checksum
         self.metadata = properties
+        self._unit = unit
 
     @property
     def unit_key(self):
@@ -83,6 +84,15 @@ class OpenstackImage(object):
         :type  conduit: pulp.plugins.conduits.repo_sync.RepoSyncConduit
         """
         conduit.save_unit(self._unit)
+
+    @classmethod
+    def from_unit(cls, unit):
+        """
+        Construct an OpenstackImage out of a Unit.
+        """
+        return cls(unit.unit_key['image_checksum'], unit)
+
+
 
 
 class ImageManifest(object):
